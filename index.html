@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control de Requisiciones</title>
+    <!-- Incluimos Tailwind CSS para un estilizado rápido y responsive -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Incluimos jsPDF para la generación de archivos PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <!-- Incluimos jsPDF-AutoTable para la generación de tablas en PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, collection, getDocs, runTransaction, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        window.firebase = {
+            initializeApp,
+            getAuth,
+            signInAnonymously,
+            signInWithCustomToken,
+            onAuthStateChanged,
+            getFirestore,
+            doc,
+            getDoc,
+            setDoc,
+            collection,
+            getDocs,
+            runTransaction,
+            query
+        };
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #121212;
+            color: #fff;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            background-color: #2c2c2c;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .input-field {
+            background-color: #444;
+            border: 1px solid #555;
+            color: #fff;
+            padding: 8px 12px;
+            border-radius: 6px;
+            width: 100%;
+        }
+        .input-field:focus {
+            outline: none;
+            border-color: #a0a0a0;
+        }
+        .label {
+            color: #ccc;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+        .table-container {
+            overflow-x: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            color: #fff;
+            margin-top: 1rem;
+        }
+        th, td {
+            padding: 8px;
+            border: 1px solid #444;
+            text-align: left;
+        }
+        th {
+            background-color: #1a1a1a;
+            font-weight: 600;
+        }
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background-color: #333;
+            color: #fff;
+            padding: 2rem;
+            border-radius: 8px;
+            text-align: center;
+            max-width: 400px;
+        }
+        .modal-form-content {
+            background-color: #333;
+            color: #fff;
+            padding: 2rem;
+            border-radius: 8px;
+            max-width: 400px;
+            width: 90%;
+        }
+        #pdf-preview-modal .modal-content {
+            width: 90%;
+            height: 90%;
+            max-width: none;
+            padding: 0;
+            overflow: hidden;
+            background-color: #2c2c2c;
+            position: relative;
+        }
+        #pdf-preview-modal iframe {
+            width: 100%;
+            height: calc(100% - 50px);
+            border: none;
+            background-color: white; /* Fondo blanco para el PDF */
+        }
+        #pdf-preview-modal .modal-footer {
+            padding: 10px;
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+        }
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+            color: #fff;
+            font-size: 1.5rem;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <!-- Pantalla de menú inicial -->
+        <div id="main-menu-screen" class="flex flex-col items-center justify-center space-y-6">
+            <h1 class="text-3xl font-bold text-center text-white mb-6">Menú Principal</h1>
+            <button id="create-requisition-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-md shadow-lg transition duration-300 w-full md:w-auto">
+                Crear Nueva Requisición
+            </button>
+            <div class="w-full md:w-auto">
+                <button id="search-requisition-toggle-btn" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-8 rounded-md shadow-lg transition duration-300 w-full">
+                    Buscar Requisición Pasada
+                </button>
+                <div id="search-form-container" class="mt-4 hidden p-4 bg-gray-700 rounded-md shadow-md">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="label">Proyecto:</label>
+                            <select id="search-project-select" class="input-field"></select>
+                        </div>
+                        <div>
+                            <label class="label">Correlativo:</label>
+                            <input type="number" id="search-correlative-input" class="input-field" placeholder="Ej. 1">
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <button id="search-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-md shadow-lg transition duration-300 w-full">
+                            Buscar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pantalla principal del formulario (oculta inicialmente) -->
+        <div id="requisition-form-screen" class="hidden">
+            <!-- Título principal -->
+            <h1 class="text-xl md:text-2xl font-bold text-center text-white mb-6">CONTROL DE REQUISICIONES</h1>
+
+            <!-- Sección de datos principales -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                <div class="space-y-4">
+                    <div class="flex items-center space-x-2">
+                        <div class="w-full">
+                            <label class="label">No. Correlativo:</label>
+                            <input type="text" id="correlative-number" class="input-field cursor-not-allowed" disabled>
+                        </div>
+                        <button id="edit-requisition-btn" class="mt-5 bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-3 rounded-md shadow-lg transition duration-300 hidden">
+                            Editar
+                        </button>
+                    </div>
+                    <div>
+                        <label class="label">Fecha:</label>
+                        <input type="date" id="date-input" class="input-field">
+                    </div>
+                </div>
+                <div class="space-y-4">
+                    <div class="flex items-center space-x-2">
+                        <div class="w-full">
+                            <label class="label">Proyecto:</label>
+                            <select id="project-select" class="input-field"></select>
+                        </div>
+                        <button id="add-project-btn" class="mt-5 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-3 rounded-md shadow-lg transition duration-300">+</button>
+                    </div>
+                    <div>
+                        <label class="label">Tipo Requisición:</label>
+                        <select id="requisition-type-select" class="input-field">
+                            <option value="Compra">Compra</option>
+                            <option value="Provision">Provisión</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="space-y-4">
+                    <div class="flex items-center space-x-2">
+                        <div class="w-full">
+                            <label class="label">Proveedor:</label>
+                            <select id="provider-select" class="input-field"></select>
+                        </div>
+                        <button id="add-provider-btn" class="mt-5 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-3 rounded-md shadow-lg transition duration-300">+</button>
+                    </div>
+                    <div>
+                        <label class="label">Tipo Proveedor:</label>
+                        <input type="text" id="provider-type-select" class="input-field cursor-not-allowed" disabled>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabla de ítems -->
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th class="w-10">Item</th>
+                            <th class="w-2/5">Descripción</th>
+                            <th class="w-16">Cantidad</th>
+                            <th class="w-16">Unidades</th>
+                            <th class="w-64">P.U.</th>
+                            <th class="w-24">SubTotal</th>
+                            <th class="w-48">Centro de Costo</th>
+                        </tr>
+                    </thead>
+                    <tbody id="requisition-table-body">
+                        <!-- Las filas se generarán con JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Sección de totales y botones -->
+            <div class="mt-4 flex flex-col md:flex-row justify-between items-end">
+                <div class="flex flex-col items-end w-full md:w-auto">
+                    <div class="flex items-center space-x-2 mb-2">
+                        <span class="label text-right">Totales:</span>
+                        <span id="total-display" class="font-bold text-lg text-white">$0.00</span>
+                    </div>
+                    <div class="flex flex-col md:flex-row space-y-2 md:space-y-0 md:space-x-4">
+                        <button id="save-button" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md shadow-lg transition duration-300">
+                            Guardar y Generar
+                        </button>
+                        <button id="pdf-button" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-md shadow-lg transition duration-300">
+                            PDF
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modales -->
+    <div id="message-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <p id="modal-message" class="text-lg"></p>
+            <button id="close-message-modal-btn" class="mt-4 bg-gray-500 hover:bg-gray-600 text-white py-1 px-4 rounded-md">Cerrar</button>
+        </div>
+    </div>
+    <div id="add-provider-modal" class="modal-overlay hidden">
+        <div class="modal-form-content">
+            <h2 class="text-xl font-bold mb-4">Agregar Nuevo Proveedor</h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="label">Nombre del Proveedor:</label>
+                    <input type="text" id="new-provider-name" class="input-field">
+                </div>
+                <div>
+                    <label class="label">Tipo de Proveedor:</label>
+                    <select id="new-provider-type-select" class="input-field"></select>
+                </div>
+            </div>
+            <div class="mt-6 flex justify-end space-x-2">
+                <button id="save-new-provider-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md shadow-lg transition duration-300">Guardar</button>
+                <button id="close-add-provider-modal-btn" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-md shadow-lg transition duration-300">Cancelar</button>
+            </div>
+        </div>
+    </div>
+    <div id="add-project-modal" class="modal-overlay hidden">
+        <div class="modal-form-content">
+            <h2 class="text-xl font-bold mb-4">Agregar Nuevo Proyecto</h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="label">Nombre del Proyecto:</label>
+                    <input type="text" id="new-project-name" class="input-field">
+                </div>
+            </div>
+            <div class="mt-6 flex justify-end space-x-2">
+                <button id="save-new-project-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md shadow-lg transition duration-300">Guardar</button>
+                <button id="close-add-project-modal-btn" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-md shadow-lg transition duration-300">Cancelar</button>
+            </div>
+        </div>
+    </div>
+    <div id="pdf-preview-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <iframe id="pdf-frame"></iframe>
+            <div class="modal-footer">
+                <button id="close-pdf-preview-btn" class="bg-gray-500 hover:bg-gray-600 text-white py-1 px-4 rounded-md">Cerrar Vista Previa</button>
+            </div>
+        </div>
+    </div>
+    <div id="loading-overlay" class="loading-overlay hidden">
+        <span>Generando PDF...</span>
+    </div>
+
+    <script type="module">
+        const { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, getFirestore, doc, getDoc, setDoc, collection, getDocs, runTransaction, query } = window.firebase;
+        
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let app, auth, db, userId;
+        let pdfObjectUrl = null;
+        let currentRequisitionId = null;
+        let isEditing = false;
+        let projects = [];
+        let providers = [];
+
+        const providerTypes = [
+            'Materiales Varios', 'Alquileres', 'Mano de Obra y contratistas',
+            'Sub Contratos', 'Combustibles'
+        ];
+
+        // Referencias a elementos del DOM
+        const mainMenuScreen = document.getElementById('main-menu-screen');
+        const requisitionFormScreen = document.getElementById('requisition-form-screen');
+        const createRequisitionBtn = document.getElementById('create-requisition-btn');
+        const searchRequisitionToggleBtn = document.getElementById('search-requisition-toggle-btn');
+        const searchFormContainer = document.getElementById('search-form-container');
+        const searchProjectSelect = document.getElementById('search-project-select');
+        const searchCorrelativeInput = document.getElementById('search-correlative-input');
+        const searchBtn = document.getElementById('search-btn');
+
+        const tableBody = document.getElementById('requisition-table-body');
+        const totalDisplay = document.getElementById('total-display');
+        const correlativeInput = document.getElementById('correlative-number');
+        const dateInput = document.getElementById('date-input');
+        const requisitionTypeSelect = document.getElementById('requisition-type-select');
+
+        const providerSelect = document.getElementById('provider-select');
+        const providerTypeInput = document.getElementById('provider-type-select');
+        const projectSelect = document.getElementById('project-select');
+
+        const addProviderBtn = document.getElementById('add-provider-btn');
+        const addProjectBtn = document.getElementById('add-project-btn');
+        const editRequisitionBtn = document.getElementById('edit-requisition-btn');
+
+        const saveButton = document.getElementById('save-button');
+        const pdfButton = document.getElementById('pdf-button');
+
+        const messageModal = document.getElementById('message-modal');
+        const modalMessage = document.getElementById('modal-message');
+        const closeMessageModalBtn = document.getElementById('close-message-modal-btn');
+        const addProviderModal = document.getElementById('add-provider-modal');
+        const newProviderNameInput = document.getElementById('new-provider-name');
+        const newProviderTypeSelect = document.getElementById('new-provider-type-select');
+        const saveNewProviderBtn = document.getElementById('save-new-provider-btn');
+        const closeAddProviderModalBtn = document.getElementById('close-add-provider-modal-btn');
+        const addProjectModal = document.getElementById('add-project-modal');
+        const newProjectNameInput = document.getElementById('new-project-name');
+        const saveNewProjectBtn = document.getElementById('save-new-project-btn');
+        const closeAddProjectModalBtn = document.getElementById('close-add-project-modal-btn');
+        const pdfPreviewModal = document.getElementById('pdf-preview-modal');
+        const pdfFrame = document.getElementById('pdf-frame');
+        const closePdfPreviewBtn = document.getElementById('close-pdf-preview-btn');
+        const loadingOverlay = document.getElementById('loading-overlay');
+
+        // ---------------- Funciones de UI ----------------
+        
+        function showScreen(screenId) {
+            mainMenuScreen.classList.add('hidden');
+            requisitionFormScreen.classList.add('hidden');
+            document.getElementById(screenId).classList.remove('hidden');
+        }
+
+        function setFormState(enabled) {
+            const fields = requisitionFormScreen.querySelectorAll('input:not(#correlative-number), select, button:not(#edit-requisition-btn, #add-project-btn, #add-provider-btn)');
+            fields.forEach(field => {
+                field.disabled = !enabled;
+                field.classList.toggle('cursor-not-allowed', !enabled);
+            });
+            projectSelect.disabled = !enabled;
+            addProviderBtn.disabled = !enabled;
+            addProjectBtn.disabled = !enabled;
+            saveButton.disabled = !enabled;
+        }
+
+        function clearForm() {
+            correlativeInput.value = '';
+            dateInput.value = '';
+            projectSelect.value = '';
+            providerSelect.value = '';
+            providerTypeInput.value = '';
+            requisitionTypeSelect.value = 'Compra';
+            totalDisplay.textContent = '$0.00';
+            
+            const tableFields = tableBody.querySelectorAll('input');
+            tableFields.forEach(field => field.value = '');
+            
+            editRequisitionBtn.classList.add('hidden');
+            currentRequisitionId = null;
+            isEditing = false;
+            setFormState(true);
+        }
+
+        function showModal(message, modalId = 'message-modal') {
+            const modal = document.getElementById(modalId);
+            if (modalId === 'message-modal') {
+                modalMessage.textContent = message;
+            }
+            modal.classList.remove('hidden');
+        }
+
+        function closeModal(modalId = 'message-modal') {
+            document.getElementById(modalId).classList.add('hidden');
+        }
+        
+        // ---------------- Funciones de Firestore ----------------
+        
+        function getCollectionRef(name) {
+            if (!userId) {
+                console.error("User ID is not available.");
+                return null;
+            }
+            return collection(db, `artifacts/${appId}/users/${userId}/${name}`);
+        }
+
+        async function loadInitialData() {
+            try {
+                if (!userId) return;
+                
+                const projectsCol = getCollectionRef('projects');
+                const projectDocs = await getDocs(projectsCol);
+                projects = projectDocs.docs.map(doc => doc.data().name);
+                
+                const providersCol = getCollectionRef('providers');
+                const providersDocs = await getDocs(providersCol);
+                providers = providersDocs.docs.map(doc => doc.data());
+                
+                renderProjects();
+                renderProjects(true); // para el menú de búsqueda
+                renderProviders();
+                renderProviderTypes();
+                generateTableRows();
+            } catch (error) {
+                console.error("Error al cargar datos iniciales:", error);
+            }
+        }
+
+        async function saveNewProject(name) {
+            try {
+                const projectsCol = getCollectionRef('projects');
+                if (!projectsCol) return false;
+                await setDoc(doc(projectsCol, name), { name });
+                return true;
+            } catch (error) {
+                console.error("Error al guardar proyecto:", error);
+                return false;
+            }
+        }
+        
+        async function saveNewProvider(name, type) {
+            try {
+                const providersCol = getCollectionRef('providers');
+                if (!providersCol) return false;
+                await setDoc(doc(providersCol, name), { name, type });
+                return true;
+            } catch (error) {
+                console.error("Error al guardar proveedor:", error);
+                return false;
+            }
+        }
+        
+        async function getNextCorrelative(projectName) {
+            const correlativeDocRef = doc(db, `artifacts/${appId}/users/${userId}/correlatives/${projectName}`);
+            
+            return await runTransaction(db, async (transaction) => {
+                const docSnapshot = await transaction.get(correlativeDocRef);
+                const nextCorrelative = (docSnapshot.exists() ? docSnapshot.data().lastCorrelative + 1 : 1);
+                transaction.set(correlativeDocRef, { lastCorrelative: nextCorrelative });
+                return nextCorrelative;
+            });
+        }
+
+        async function saveRequisition(requisitionData) {
+            try {
+                const requisitionsCol = getCollectionRef('requisitions');
+                if (!requisitionsCol) return null;
+                let docRef;
+
+                if (requisitionData.id) {
+                    docRef = doc(requisitionsCol, requisitionData.id);
+                    await setDoc(docRef, {
+                        ...requisitionData,
+                        editedAt: new Date().toISOString()
+                    }, { merge: true });
+                } else {
+                    docRef = doc(requisitionsCol);
+                    await setDoc(docRef, {
+                        ...requisitionData,
+                        createdAt: new Date().toISOString()
+                    });
+                }
+
+                return docRef.id;
+            } catch (error) {
+                console.error("Error al guardar requisición:", error);
+                return null;
+            }
+        }
+        
+        async function getRequisition(project, correlative) {
+            try {
+                const requisitionsCol = getCollectionRef('requisitions');
+                if (!requisitionsCol) return null;
+                const querySnapshot = await getDocs(requisitionsCol);
+                
+                let foundRequisition = null;
+                querySnapshot.forEach(doc => {
+                    const data = doc.data();
+                    if (data.project === project && data.correlativo === parseInt(correlative)) {
+                        foundRequisition = { id: doc.id, ...data };
+                    }
+                });
+                
+                return foundRequisition;
+            } catch (error) {
+                console.error("Error al buscar requisición:", error);
+                return null;
+            }
+        }
+        
+        // ---------------- Funciones de renderizado ----------------
+
+        function renderProviders(providerList = providers) {
+            providerSelect.innerHTML = '<option value="">Selecciona un proveedor</option>';
+            if (providerList) {
+                providerList.forEach(p => {
+                    const option = document.createElement('option');
+                    option.value = p.name;
+                    option.textContent = p.name;
+                    providerSelect.appendChild(option);
+                });
+            }
+        }
+
+        function renderProviderTypes() {
+            newProviderTypeSelect.innerHTML = '';
+            providerTypes.forEach(type => {
+                const option = document.createElement('option');
+                option.value = type;
+                option.textContent = type;
+                newProviderTypeSelect.appendChild(option);
+            });
+        }
+
+        function renderProjects(forSearch = false) {
+            const selectElement = forSearch ? searchProjectSelect : projectSelect;
+            selectElement.innerHTML = '<option value="">Selecciona un proyecto</option>';
+            projects.forEach(p => {
+                const option = document.createElement('option');
+                option.value = p;
+                option.textContent = p;
+                selectElement.appendChild(option);
+            });
+            if (!forSearch) {
+                updateProjectCorrelative();
+            }
+        }
+
+        function generateTableRows() {
+            tableBody.innerHTML = '';
+            for (let i = 1; i <= 10; i++) {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="text-center">${i}</td>
+                    <td><input type="text" class="input-field description" data-row-id="${i}"></td>
+                    <td><input type="number" class="input-field quantity" data-row-id="${i}" min="0"></td>
+                    <td><input type="text" class="input-field units" data-row-id="${i}"></td>
+                    <td><input type="text" class="input-field price" data-row-id="${i}"></td>
+                    <td><span class="subtotal-display font-mono">$0.00</span></td>
+                    <td><input type="text" class="input-field cost-center" data-row-id="${i}"></td>
+                `;
+                tableBody.appendChild(row);
+            }
+        }
+
+        function loadRequisitionDataToForm(data) {
+            clearForm();
+            
+            correlativeInput.value = data.correlativo;
+            dateInput.value = data.date;
+            projectSelect.value = data.project;
+            providerSelect.value = data.provider;
+            providerTypeInput.value = data.providerType;
+            requisitionTypeSelect.value = data.requisitionType;
+            totalDisplay.textContent = data.total;
+            currentRequisitionId = data.id;
+            
+            data.items.forEach((item, index) => {
+                const row = tableBody.children[index];
+                if (row) {
+                    row.querySelector('.description').value = item.description;
+                    row.querySelector('.quantity').value = item.quantity;
+                    row.querySelector('.units').value = item.units;
+                    row.querySelector('.price').value = item.price;
+                    row.querySelector('.subtotal-display').textContent = item.subtotal;
+                    row.querySelector('.cost-center').value = item.costCenter;
+                }
+            });
+            
+            setFormState(false);
+            editRequisitionBtn.classList.remove('hidden');
+            showScreen('requisition-form-screen');
+        }
+
+        // ---------------- Funciones de lógica de negocio ----------------
+
+        function updateTotals() {
+            let grandTotal = 0;
+            const rows = tableBody.querySelectorAll('tr');
+            rows.forEach(row => {
+                const quantityInput = row.querySelector('.quantity');
+                const priceInput = row.querySelector('.price');
+                const subtotalDisplay = row.querySelector('.subtotal-display');
+
+                const quantity = parseFloat(quantityInput.value) || 0;
+                const price = parseFloat(priceInput.value.replace('$', '')) || 0;
+                const subtotal = quantity * price;
+
+                subtotalDisplay.textContent = `$${subtotal.toFixed(2)}`;
+                grandTotal += subtotal;
+            });
+            totalDisplay.textContent = `$${grandTotal.toFixed(2)}`;
+        }
+
+        function formatCurrency(inputElement) {
+            let value = inputElement.value.replace(/[^0-9.]/g, '');
+            const numericValue = parseFloat(value) || 0;
+            inputElement.value = `$${numericValue.toFixed(2)}`;
+        }
+        
+        function updateProjectCorrelative() {
+            const selectedProject = projectSelect.value;
+            if (selectedProject) {
+                const correlativeDocRef = doc(db, `artifacts/${appId}/users/${userId}/correlatives/${selectedProject}`);
+                getDoc(correlativeDocRef).then(docSnapshot => {
+                    const lastCorrelative = (docSnapshot.exists() ? docSnapshot.data().lastCorrelative : 0);
+                    const correlativeNumber = String(lastCorrelative + 1).padStart(3, '0');
+                    correlativeInput.value = `${selectedProject}-${correlativeNumber}`;
+                }).catch(error => {
+                    console.error("Error al obtener el correlativo:", error);
+                    correlativeInput.value = `${selectedProject}-001`;
+                });
+            } else {
+                correlativeInput.value = '';
+            }
+        }
+
+        function generatePDF(download = false) {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+
+            doc.setFontSize(22);
+            doc.text('Control de Requisiciones', 105, 20, null, null, 'center');
+
+            doc.setFontSize(12);
+            const project = projectSelect.value;
+            const correlative = correlativeInput.value;
+            const date = dateInput.value;
+            const requisitionType = requisitionTypeSelect.value;
+            const provider = providerSelect.value;
+            const providerType = providerTypeInput.value;
+
+            let y = 30;
+            doc.text(`No. Correlativo: ${correlative}`, 14, y);
+            doc.text(`Fecha: ${date}`, 120, y);
+            y += 8;
+            doc.text(`Proyecto: ${project}`, 14, y);
+            doc.text(`Tipo Requisición: ${requisitionType}`, 120, y);
+            y += 8;
+            doc.text(`Proveedor: ${provider}`, 14, y);
+            doc.text(`Tipo Proveedor: ${providerType}`, 120, y);
+
+            const tableHeaders = [['Item', 'Descripción', 'Cantidad', 'Unidades', 'P.U.', 'SubTotal', 'Centro de Costo']];
+            const tableData = [];
+            const rows = tableBody.querySelectorAll('tr');
+
+            rows.forEach((row, index) => {
+                const description = row.querySelector('.description').value;
+                const quantity = row.querySelector('.quantity').value;
+                const units = row.querySelector('.units').value;
+                const price = row.querySelector('.price').value;
+                const subtotal = row.querySelector('.subtotal-display').textContent;
+                const costCenter = row.querySelector('.cost-center').value;
+
+                if (description || quantity) {
+                     tableData.push([
+                        (index + 1),
+                        description,
+                        quantity,
+                        units,
+                        price,
+                        subtotal,
+                        costCenter
+                    ]);
+                }
+            });
+
+            doc.autoTable({
+                startY: y + 10,
+                head: tableHeaders,
+                body: tableData,
+                theme: 'striped',
+                styles: { fontSize: 8, cellPadding: 2, overflow: 'linebreak' },
+                headStyles: { fillColor: [26, 26, 26], textColor: [255, 255, 255] },
+                alternateRowStyles: { fillColor: [44, 44, 44] },
+                bodyStyles: { textColor: [204, 204, 204] },
+            });
+
+            const finalY = doc.lastAutoTable.finalY || y + 10;
+            doc.setFontSize(12);
+            doc.text(`Totales: ${totalDisplay.textContent}`, 170, finalY + 10);
+            
+            const approvalStartY = finalY + 20;
+            doc.setFontSize(10);
+            doc.text('_________________________', 20, approvalStartY);
+            doc.text('Nombre y Firma de Aprobación', 20, approvalStartY + 5);
+            
+            doc.text('_________________________', 80, approvalStartY);
+            doc.text('Nombre y Firma de Aprobación', 80, approvalStartY + 5);
+            
+            doc.text('_________________________', 140, approvalStartY);
+            doc.text('Nombre y Firma de Aprobación', 140, approvalStartY + 5);
+
+            if (isEditing) {
+                const now = new Date();
+                const editedText = `Requisición editada - Fecha de edición: ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`;
+                doc.setFontSize(8);
+                doc.text(editedText, 14, doc.internal.pageSize.height - 10);
+            }
+
+            if (download) {
+                doc.save(`Requisicion-${correlative}.pdf`);
+            } else {
+                const pdfBlob = doc.output('blob');
+                if (pdfObjectUrl) {
+                    URL.revokeObjectURL(pdfObjectUrl);
+                }
+                pdfObjectUrl = URL.createObjectURL(pdfBlob);
+                pdfFrame.src = pdfObjectUrl;
+                pdfPreviewModal.classList.remove('hidden');
+            }
+        }
+        
+        // ---------------- Inicialización y Eventos ----------------
+        
+        async function initApp() {
+             await initFirebase();
+            
+            createRequisitionBtn.addEventListener('click', () => {
+                clearForm();
+                showScreen('requisition-form-screen');
+            });
+            
+            searchRequisitionToggleBtn.addEventListener('click', () => {
+                searchFormContainer.classList.toggle('hidden');
+            });
+            
+            searchBtn.addEventListener('click', async () => {
+                const project = searchProjectSelect.value;
+                const correlative = searchCorrelativeInput.value;
+                
+                if (!project || !correlative) {
+                    showModal('Por favor, selecciona un proyecto e ingresa un correlativo.');
+                    return;
+                }
+                
+                loadingOverlay.classList.remove('hidden');
+                const requisition = await getRequisition(project, correlative);
+                loadingOverlay.classList.add('hidden');
+                
+                if (requisition) {
+                    loadRequisitionDataToForm(requisition);
+                    showModal('Requisición cargada con éxito.');
+                } else {
+                    showModal('No se encontró ninguna requisición con esos datos.');
+                }
+            });
+
+            editRequisitionBtn.addEventListener('click', () => {
+                isEditing = true;
+                setFormState(true);
+                editRequisitionBtn.classList.add('hidden');
+                showModal('Modo de edición activado. Puedes hacer cambios ahora.');
+            });
+
+            tableBody.addEventListener('input', (event) => {
+                if (event.target.classList.contains('quantity')) {
+                    updateTotals();
+                }
+            });
+
+            tableBody.addEventListener('blur', (event) => {
+                if (event.target.classList.contains('price')) {
+                    formatCurrency(event.target);
+                    updateTotals();
+                }
+            }, true);
+
+            addProviderBtn.addEventListener('click', () => {
+                newProviderNameInput.value = '';
+                newProviderTypeSelect.value = providerTypes[0];
+                showModal('', 'add-provider-modal');
+            });
+
+            closeAddProviderModalBtn.addEventListener('click', () => closeModal('add-provider-modal'));
+
+            saveNewProviderBtn.addEventListener('click', async () => {
+                const name = newProviderNameInput.value.trim();
+                const type = newProviderTypeSelect.value;
+                if (!name) {
+                    showModal('Por favor, ingresa el nombre del proveedor.');
+                    return;
+                }
+                const existingProvider = providers.find(p => p.name === name);
+                if (existingProvider) {
+                    showModal(`Ya existe un proveedor con el nombre "${name}".`);
+                    return;
+                }
+                if (await saveNewProvider(name, type)) {
+                    providers.push({ name, type });
+                    renderProviders();
+                    closeModal('add-provider-modal');
+                    showModal(`Proveedor "${name}" agregado con éxito.`);
+                }
+            });
+
+            providerSelect.addEventListener('change', () => {
+                const selectedProviderName = providerSelect.value;
+                const selectedProvider = providers.find(p => p.name === selectedProviderName);
+                providerTypeInput.value = selectedProvider ? selectedProvider.type : '';
+            });
+
+            addProjectBtn.addEventListener('click', () => {
+                newProjectNameInput.value = '';
+                showModal('', 'add-project-modal');
+            });
+
+            closeAddProjectModalBtn.addEventListener('click', () => closeModal('add-project-modal'));
+
+            saveNewProjectBtn.addEventListener('click', async () => {
+                const name = newProjectNameInput.value.trim();
+                if (!name) {
+                    showModal('Por favor, ingresa el nombre del proyecto.');
+                    return;
+                }
+                if (projects.includes(name)) {
+                    showModal(`Ya existe un proyecto con el nombre "${name}".`);
+                    return;
+                }
+                if (await saveNewProject(name)) {
+                    projects.push(name);
+                    renderProjects();
+                    renderProjects(true);
+                    closeModal('add-project-modal');
+                    showModal(`Proyecto "${name}" agregado con éxito.`);
+                }
+            });
+
+            projectSelect.addEventListener('change', updateProjectCorrelative);
+            searchProjectSelect.addEventListener('change', () => searchCorrelativeInput.value = '');
+
+            saveButton.addEventListener('click', async () => {
+                const selectedProject = projectSelect.value;
+                if (!selectedProject) {
+                    showModal('Por favor, selecciona un proyecto para guardar la requisición.');
+                    return;
+                }
+                if (!dateInput.value) {
+                    showModal('Por favor, ingresa una fecha para la requisición.');
+                    return;
+                }
+                
+                loadingOverlay.classList.remove('hidden');
+                
+                const requisitionData = {
+                    project: projectSelect.value,
+                    correlativo: isEditing ? parseInt(correlativeInput.value) : await getNextCorrelative(projectSelect.value),
+                    date: dateInput.value,
+                    requisitionType: requisitionTypeSelect.value,
+                    provider: providerSelect.value,
+                    providerType: providerTypeInput.value,
+                    total: totalDisplay.textContent,
+                    items: Array.from(tableBody.querySelectorAll('tr')).map(row => ({
+                        description: row.querySelector('.description').value,
+                        quantity: row.querySelector('.quantity').value,
+                        units: row.querySelector('.units').value,
+                        price: row.querySelector('.price').value,
+                        subtotal: row.querySelector('.subtotal-display').textContent,
+                        costCenter: row.querySelector('.cost-center').value,
+                    }))
+                };
+                
+                if (currentRequisitionId) {
+                    requisitionData.id = currentRequisitionId;
+                }
+
+                const newDocId = await saveRequisition(requisitionData);
+                
+                if (newDocId) {
+                    generatePDF(true);
+                    updateProjectCorrelative();
+                    clearForm();
+                    showScreen('main-menu-screen');
+                    showModal('Requisición guardada y generada con éxito.');
+                } else {
+                    showModal('Ocurrió un error al guardar la requisición.');
+                }
+                
+                loadingOverlay.classList.add('hidden');
+            });
+
+            pdfButton.addEventListener('click', () => {
+                if (!projectSelect.value || !correlativeInput.value || !dateInput.value) {
+                    showModal('Por favor, completa los campos principales antes de generar el PDF.');
+                    return;
+                }
+                
+                loadingOverlay.classList.remove('hidden');
+
+                setTimeout(() => {
+                    generatePDF(false);
+                    loadingOverlay.classList.add('hidden');
+                }, 500);
+            });
+
+            closeMessageModalBtn.addEventListener('click', () => closeModal('message-modal'));
+            
+            closePdfPreviewBtn.addEventListener('click', () => {
+                closeModal('pdf-preview-modal');
+                if (pdfObjectUrl) {
+                    URL.revokeObjectURL(pdfObjectUrl);
+                    pdfObjectUrl = null;
+                }
+            });
+        }
+        
+        async function initFirebase() {
+            try {
+                app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        loadInitialData();
+                    } else {
+                        console.log("No hay usuario autenticado.");
+                    }
+                });
+            } catch (error) {
+                console.error("Error al inicializar Firebase:", error);
+            }
+        }
+        
+        document.addEventListener('DOMContentLoaded', initApp);
+    </script>
+</body>
+</html>
