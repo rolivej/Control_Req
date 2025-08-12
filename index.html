@@ -4,20 +4,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Control de Requisiciones</title>
-    <!-- Incluimos Tailwind CSS para un estilizado rápido y responsive -->
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Incluimos jsPDF para la generación de archivos PDF -->
+    <!-- jsPDF y AutoTable -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <!-- Incluimos jsPDF-AutoTable para la generación de tablas en PDF -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
-    <!-- Incluimos SheetJS para exportar a Excel -->
+    <!-- SheetJS -->
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
     <!-- Firebase SDK -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc, collection, getDocs, runTransaction, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
         window.firebase = {
             initializeApp,
             getAuth,
@@ -35,117 +33,22 @@
         };
     </script>
     <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #121212;
-            color: #fff;
-        }
-        .container {
-            max-width: 1200px;
-            margin: 2rem auto;
-            background-color: #2c2c2c;
-            padding: 2rem;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
-        .input-field {
-            background-color: #444;
-            border: 1px solid #555;
-            color: #fff;
-            padding: 8px 12px;
-            border-radius: 6px;
-            width: 100%;
-        }
-        .input-field:focus {
-            outline: none;
-            border-color: #a0a0a0;
-        }
-        .label {
-            color: #ccc;
-            font-size: 0.875rem;
-            font-weight: 500;
-        }
-        .table-container {
-            overflow-x: auto;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            color: #fff;
-            margin-top: 1rem;
-        }
-        th, td {
-            padding: 8px;
-            border: 1px solid #444;
-            text-align: left;
-        }
-        th {
-            background-color: #1a1a1a;
-            font-weight: 600;
-        }
-        .modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.7);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 1000;
-        }
-        .modal-content {
-            background-color: #333;
-            color: #fff;
-            padding: 2rem;
-            border-radius: 8px;
-            text-align: center;
-            max-width: 400px;
-        }
-        .modal-form-content {
-            background-color: #333;
-            color: #fff;
-            padding: 2rem;
-            border-radius: 8px;
-            max-width: 400px;
-            width: 90%;
-        }
-        #pdf-preview-modal .modal-content {
-            width: 90%;
-            height: 90%;
-            max-width: none;
-            padding: 0;
-            overflow: hidden;
-            background-color: #2c2c2c;
-            position: relative;
-        }
-        #pdf-preview-modal iframe {
-            width: 100%;
-            height: calc(100% - 50px);
-            border: none;
-            background-color: white; /* Fondo blanco para el PDF */
-        }
-        #pdf-preview-modal .modal-footer {
-            padding: 10px;
-            display: flex;
-            justify-content: flex-end;
-            align-items: center;
-        }
-        .loading-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.7);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 2000;
-            color: #fff;
-            font-size: 1.5rem;
-        }
+        body { font-family: 'Inter', sans-serif; background-color: #121212; color: #fff; }
+        .container { max-width: 1200px; margin: 2rem auto; background-color: #2c2c2c; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);}
+        .input-field { background-color: #444; border: 1px solid #555; color: #fff; padding: 8px 12px; border-radius: 6px; width: 100%; }
+        .input-field:focus { outline: none; border-color: #a0a0a0; }
+        .label { color: #ccc; font-size: 0.875rem; font-weight: 500; }
+        .table-container { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; color: #fff; margin-top: 1rem; }
+        th, td { padding: 8px; border: 1px solid #444; text-align: left; }
+        th { background-color: #1a1a1a; font-weight: 600; }
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.7); display: flex; justify-content: center; align-items: center; z-index: 1000; }
+        .modal-content { background-color: #333; color: #fff; padding: 2rem; border-radius: 8px; text-align: center; max-width: 400px; }
+        .modal-form-content { background-color: #333; color: #fff; padding: 2rem; border-radius: 8px; max-width: 400px; width: 90%; }
+        #pdf-preview-modal .modal-content { width: 90%; height: 90%; max-width: none; padding: 0; overflow: hidden; background-color: #2c2c2c; position: relative; }
+        #pdf-preview-modal iframe { width: 100%; height: calc(100% - 50px); border: none; background-color: white;}
+        #pdf-preview-modal .modal-footer { padding: 10px; display: flex; justify-content: flex-end; align-items: center; }
+        .loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.7); display: flex; justify-content: center; align-items: center; z-index: 2000; color: #fff; font-size: 1.5rem; }
     </style>
 </head>
 <body>
@@ -182,6 +85,63 @@
             <button id="download-excel-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-8 rounded-md shadow-lg transition duration-300 w-full md:w-auto mt-4">
                 Descargar Base de Datos (Excel)
             </button>
+            <button id="open-summary-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-md shadow-lg transition duration-300 w-full md:w-auto mt-4">
+                Ver Resumen por Proyecto
+            </button>
+        </div>
+
+        <!-- Pantalla de resumen por proyecto -->
+        <div id="summary-screen" class="hidden">
+            <button id="back-to-menu-btn-summary" class="bg-gray-500 hover:bg-gray-600 text-white py-2 px-4 rounded-md mb-4">
+                Regresar al Menú
+            </button>
+            <h2 class="text-2xl font-bold text-center text-white mb-6">Resumen de Requisiciones por Proyecto</h2>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6 bg-gray-800 p-4 rounded-md">
+                <div>
+                    <label class="label">Proyecto:</label>
+                    <select id="summary-project-select" class="input-field"></select>
+                </div>
+                <div>
+                    <label class="label">Tipo de Requisición:</label>
+                    <select id="summary-type-select" class="input-field">
+                        <option value="ambos">Ambos</option>
+                        <option value="Compra">Compra</option>
+                        <option value="Provision">Provisión</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="label">Proveedor:</label>
+                    <select id="summary-provider-select" class="input-field">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="label">Tipo Proveedor:</label>
+                    <select id="summary-provider-type-select" class="input-field">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+            </div>
+            <div class="table-container mb-6">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>No. Correlativo</th>
+                            <th>Fecha</th>
+                            <th>Tipo Requisición</th>
+                            <th>Proveedor</th>
+                            <th>Tipo Proveedor</th>
+                            <th>Total</th>
+                        </tr>
+                    </thead>
+                    <tbody id="summary-table-body">
+                    </tbody>
+                </table>
+            </div>
+            <div class="flex justify-end">
+                <span class="label text-lg font-bold mr-2">Suma Total del Proyecto:</span>
+                <span id="summary-total" class="text-lg font-bold text-green-400">$0.00</span>
+            </div>
         </div>
 
         <!-- Pantalla principal del formulario (oculta inicialmente) -->
@@ -372,6 +332,17 @@
             'Sub Contratos', 'Combustibles'
         ];
 
+        // ----------- Variables para la pantalla de resumen ----------
+        const openSummaryBtn = document.getElementById('open-summary-btn');
+        const summaryScreen = document.getElementById('summary-screen');
+        const backToMenuBtnSummary = document.getElementById('back-to-menu-btn-summary');
+        const summaryProjectSelect = document.getElementById('summary-project-select');
+        const summaryTypeSelect = document.getElementById('summary-type-select');
+        const summaryProviderSelect = document.getElementById('summary-provider-select');
+        const summaryProviderTypeSelect = document.getElementById('summary-provider-type-select');
+        const summaryTableBody = document.getElementById('summary-table-body');
+        const summaryTotal = document.getElementById('summary-total');
+        
         // Referencias a elementos del DOM
         const mainMenuScreen = document.getElementById('main-menu-screen');
         const requisitionFormScreen = document.getElementById('requisition-form-screen');
@@ -601,6 +572,35 @@
             }
         }
 
+        // ----------- Renderizado de filtros para resumen -----------
+        function renderSummaryProjects() {
+            summaryProjectSelect.innerHTML = '<option value="">Selecciona un proyecto</option>';
+            projects.forEach(p => {
+                const option = document.createElement('option');
+                option.value = p;
+                option.textContent = p;
+                summaryProjectSelect.appendChild(option);
+            });
+        }
+        function renderSummaryProviders() {
+            summaryProviderSelect.innerHTML = '<option value="">Todos</option>';
+            providers.forEach(p => {
+                const option = document.createElement('option');
+                option.value = p.name;
+                option.textContent = p.name;
+                summaryProviderSelect.appendChild(option);
+            });
+        }
+        function renderSummaryProviderTypes() {
+            summaryProviderTypeSelect.innerHTML = '<option value="">Todos</option>';
+            providerTypes.forEach(type => {
+                const option = document.createElement('option');
+                option.value = type;
+                option.textContent = type;
+                summaryProviderTypeSelect.appendChild(option);
+            });
+        }
+
         function renderProviderTypes() {
             newProviderTypeSelect.innerHTML = '';
             providerTypes.forEach(type => {
@@ -809,7 +809,80 @@
                 pdfPreviewModal.classList.remove('hidden');
             }
         }
-        
+        // ----------- Evento para abrir Resumen -----------
+        openSummaryBtn.addEventListener('click', () => {
+            renderSummaryProjects();
+            renderSummaryProviders();
+            renderSummaryProviderTypes();
+            summaryTableBody.innerHTML = '';
+            summaryTotal.textContent = '$0.00';
+            showScreen('summary-screen');
+        });
+        backToMenuBtnSummary.addEventListener('click', () => {
+            showScreen('main-menu-screen');
+        });
+
+        // ----------- Función de filtrado y llenado de tabla -----------
+        async function updateSummaryTable() {
+            summaryTableBody.innerHTML = '';
+            summaryTotal.textContent = '$0.00';
+
+            const selectedProject = summaryProjectSelect.value;
+            const selectedType = summaryTypeSelect.value;
+            const selectedProvider = summaryProviderSelect.value;
+            const selectedProviderType = summaryProviderTypeSelect.value;
+
+            if (!selectedProject) return;
+
+            const requisitionsCol = getCollectionRef('requisitions');
+            const querySnapshot = await getDocs(requisitionsCol);
+
+            let total = 0;
+            let rows = '';
+
+            querySnapshot.forEach(docSnap => {
+                const data = docSnap.data();
+                if (data.project !== selectedProject) return;
+
+                if ((selectedType !== "ambos") && (data.requisitionType !== selectedType)) return;
+                if (selectedProvider && data.provider !== selectedProvider) return;
+                if (selectedProviderType && data.providerType !== selectedProviderType) return;
+
+                // Asegura que el total sea un número
+                let totalNum = 0;
+                if (typeof data.total === "string") {
+                    totalNum = parseFloat(data.total.replace('$', '').replace(',','')) || 0;
+                } else {
+                    totalNum = data.total || 0;
+                }
+                total += totalNum;
+
+                rows += `
+                    <tr>
+                        <td>${data.correlativo ?? ''}</td>
+                        <td>${data.date ?? ''}</td>
+                        <td>${data.requisitionType ?? ''}</td>
+                        <td>${data.provider ?? ''}</td>
+                        <td>${data.providerType ?? ''}</td>
+                        <td>${data.total ?? ''}</td>
+                    </tr>
+                `;
+            });
+
+            summaryTableBody.innerHTML = rows;
+            summaryTotal.textContent = `$${total.toFixed(2)}`;
+        }
+
+        summaryProjectSelect.addEventListener('change', updateSummaryTable);
+        summaryTypeSelect.addEventListener('change', updateSummaryTable);
+        summaryProviderSelect.addEventListener('change', updateSummaryTable);
+        summaryProviderTypeSelect.addEventListener('change', updateSummaryTable);
+
+        // Llama updateSummaryTable si ya hay un proyecto seleccionado al abrir la pantalla
+        summaryProjectSelect.addEventListener('change', () => {
+            if (summaryProjectSelect.value) updateSummaryTable();
+        });
+
         // ---------------- Inicialización y Eventos ----------------
         
         async function initApp() {
@@ -1087,9 +1160,32 @@
         }
 
         document.addEventListener('DOMContentLoaded', initApp);
+        // (al final del script, en tu initApp, asegúrate de llamar renderSummaryProjects/renderSummaryProviders/renderSummaryProviderTypes después de cargar datos)
+        async function loadInitialData() {
+            try {
+                if (!userId) return;
+                const projectsCol = getCollectionRef('projects');
+                const projectDocs = await getDocs(projectsCol);
+                projects = projectDocs.docs.map(doc => doc.data().name);
+                const providersCol = getCollectionRef('providers');
+                const providersDocs = await getDocs(providersCol);
+                providers = providersDocs.docs.map(doc => doc.data());
+                renderProjects();
+                renderProjects(true); // para el menú de búsqueda
+                renderProviders();
+                renderProviderTypes();
+                renderSummaryProjects();
+                renderSummaryProviders();
+                renderSummaryProviderTypes();
+                generateTableRows();
+            } catch (error) {
+                console.error("Error al cargar datos iniciales:", error);
+            }
+        }
     </script>
 </body>
 </html>
+
 
 
 
