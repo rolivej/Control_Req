@@ -332,6 +332,13 @@
     <script type="module">
         const { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, getFirestore, doc, getDoc, setDoc, collection, getDocs, runTransaction, query } = window.firebase;
         
+        //Boton de regreso al menú de inicio
+        const backToMenuBtn = document.getElementById('back-to-menu-btn');
+        backToMenuBtn.addEventListener('click', () => {
+        clearForm();
+        showScreen('main-menu-screen');
+        });
+        
         // CORRECCIÓN: Se agrega una configuración de Firebase predeterminada
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : `{
@@ -1022,5 +1029,6 @@
     </script>
 </body>
 </html>
+
 
 
