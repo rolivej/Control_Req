@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Control de Requisiciones</title>
@@ -11,50 +10,14 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <!-- Incluimos jsPDF-AutoTable para la generación de tablas en PDF -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <!-- Incluimos SheetJS para exportar a Excel -->
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
     <!-- Firebase SDK -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc, collection, getDocs, runTransaction, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        //Script para descargar a Excel
-        const downloadExcelBtn = document.getElementById('download-excel-btn');
-downloadExcelBtn.addEventListener('click', async () => {
-    if (!userId) {
-        showModal('Debes iniciar sesión primero.');
-        return;
-    }
-    loadingOverlay.classList.remove('hidden');
-    try {
-        // Obtén todas las requisiciones
-        const requisitionsCol = getCollectionRef('requisitions');
-        const querySnapshot = await getDocs(requisitionsCol);
-
-        if (querySnapshot.empty) {
-            loadingOverlay.classList.add('hidden');
-            showModal('No hay datos para exportar.');
-            return;
-        }
-
-        const requisitions = [];
-        querySnapshot.forEach(doc => {
-            requisitions.push(doc.data());
-        });
-
-        // Convierte los datos a una hoja de Excel
-        const worksheet = XLSX.utils.json_to_sheet(requisitions);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "Requisiciones");
-
-        // Descarga el archivo
-        XLSX.writeFile(workbook, "requisiciones.xlsx");
-    } catch (error) {
-        console.error(error);
-        showModal('Error al descargar la base de datos.');
-    }
-    loadingOverlay.classList.add('hidden');
-});
-        
         window.firebase = {
             initializeApp,
             getAuth,
@@ -194,9 +157,6 @@ downloadExcelBtn.addEventListener('click', async () => {
             <button id="create-requisition-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-md shadow-lg transition duration-300 w-full md:w-auto">
                 Crear Nueva Requisición
             </button>
-            <button id="download-excel-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-8 rounded-md shadow-lg transition duration-300 w-full md:w-auto mt-4">
-                Descargar Base de Datos (Excel)
-            </button>
             <div class="w-full md:w-auto">
                 <button id="search-requisition-toggle-btn" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-8 rounded-md shadow-lg transition duration-300 w-full">
                     Buscar Requisición Pasada
@@ -219,13 +179,16 @@ downloadExcelBtn.addEventListener('click', async () => {
                     </div>
                 </div>
             </div>
+            <button id="download-excel-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-8 rounded-md shadow-lg transition duration-300 w-full md:w-auto mt-4">
+                Descargar Base de Datos (Excel)
+            </button>
         </div>
 
         <!-- Pantalla principal del formulario (oculta inicialmente) -->
         <div id="requisition-form-screen" class="hidden">
-           <!-- Botón de regreso -->
+            <!-- Botón de regreso -->
             <button id="back-to-menu-btn" class="bg-gray-500 hover:bg-gray-600 text-white py-2 px-4 rounded-md mb-4">
-            Regresar al Menú
+                Regresar al Menú
             </button>
             <!-- Título principal -->
             <h1 class="text-xl md:text-2xl font-bold text-center text-white mb-6">CONTROL DE REQUISICIONES</h1>
@@ -370,16 +333,19 @@ downloadExcelBtn.addEventListener('click', async () => {
     <div id="loading-overlay" class="loading-overlay hidden">
         <span>Generando PDF...</span>
     </div>
+    <!-- Modal post guardado -->
+    <div id="post-save-modal" class="modal-overlay hidden">
+      <div class="modal-content">
+        <p class="text-lg">¡Requisición guardada exitosamente! ¿Qué desea hacer?</p>
+        <div class="mt-4 flex justify-center space-x-4">
+          <button id="download-saved-pdf-btn" class="bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-md">Descargar PDF</button>
+          <button id="exit-to-menu-btn" class="bg-gray-500 hover:bg-gray-600 text-white py-2 px-4 rounded-md">Salir</button>
+        </div>
+      </div>
+    </div>
 
     <script type="module">
         const { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, getFirestore, doc, getDoc, setDoc, collection, getDocs, runTransaction, query } = window.firebase;
-        
-        //Boton de regreso al menú de inicio
-        const backToMenuBtn = document.getElementById('back-to-menu-btn');
-        backToMenuBtn.addEventListener('click', () => {
-        clearForm();
-        showScreen('main-menu-screen');
-        });
         
         // CORRECCIÓN: Se agrega una configuración de Firebase predeterminada
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
@@ -449,6 +415,11 @@ downloadExcelBtn.addEventListener('click', async () => {
         const pdfFrame = document.getElementById('pdf-frame');
         const closePdfPreviewBtn = document.getElementById('close-pdf-preview-btn');
         const loadingOverlay = document.getElementById('loading-overlay');
+        const downloadExcelBtn = document.getElementById('download-excel-btn');
+        const backToMenuBtn = document.getElementById('back-to-menu-btn');
+        const postSaveModal = document.getElementById('post-save-modal');
+        const downloadSavedPdfBtn = document.getElementById('download-saved-pdf-btn');
+        const exitToMenuBtn = document.getElementById('exit-to-menu-btn');
 
         // ---------------- Funciones de UI ----------------
         
@@ -468,6 +439,7 @@ downloadExcelBtn.addEventListener('click', async () => {
             addProviderBtn.disabled = !enabled;
             addProjectBtn.disabled = !enabled;
             saveButton.disabled = !enabled;
+            pdfButton.disabled = false; // Siempre permitir vista previa PDF
         }
 
         function clearForm() {
@@ -694,8 +666,8 @@ downloadExcelBtn.addEventListener('click', async () => {
                 }
             });
             
-            setFormState(false);
-            editRequisitionBtn.classList.remove('hidden');
+            setFormState(false); // Deshabilita los campos
+            editRequisitionBtn.classList.remove('hidden'); // Muestra botón Editar
             showScreen('requisition-form-screen');
         }
 
@@ -826,7 +798,7 @@ downloadExcelBtn.addEventListener('click', async () => {
             }
 
             if (download) {
-                doc.save(`Requisicion-${correlativo}.pdf`);
+                doc.save(`Requisicion-${correlative}.pdf`);
             } else {
                 const pdfBlob = doc.output('blob');
                 if (pdfObjectUrl) {
@@ -854,7 +826,7 @@ downloadExcelBtn.addEventListener('click', async () => {
             
             searchBtn.addEventListener('click', async () => {
                 const project = searchProjectSelect.value;
-                const correlativo = searchCorrelativeInput.value;
+                const correlativo = searchCorrelativoInput.value;
                 
                 if (!project || !correlativo) {
                     showModal('Por favor, selecciona un proyecto e ingresa un correlativo.');
@@ -866,7 +838,7 @@ downloadExcelBtn.addEventListener('click', async () => {
                 loadingOverlay.classList.add('hidden');
                 
                 if (requisition) {
-                    loadRequisitionDataToForm(requisition);
+                    loadRequisitionDataToForm(requisition); // Llena y deshabilita
                     showModal('Requisición cargada con éxito.');
                 } else {
                     showModal('No se encontró ninguna requisición con esos datos.');
@@ -875,7 +847,7 @@ downloadExcelBtn.addEventListener('click', async () => {
 
             editRequisitionBtn.addEventListener('click', () => {
                 isEditing = true;
-                setFormState(true);
+                setFormState(true); // Habilita campos
                 editRequisitionBtn.classList.add('hidden');
                 showModal('Modo de edición activado. Puedes hacer cambios ahora.');
             });
@@ -993,17 +965,14 @@ downloadExcelBtn.addEventListener('click', async () => {
 
                 const newDocId = await saveRequisition(requisitionData);
                 
+                loadingOverlay.classList.add('hidden');
+
                 if (newDocId) {
-                    generatePDF(true);
-                    updateProjectCorrelative();
-                    clearForm();
-                    showScreen('main-menu-screen');
-                    showModal('Requisición guardada y generada con éxito.');
+                    document.getElementById('post-save-modal').classList.remove('hidden');
+                    window._lastSavedRequisition = requisitionData;
                 } else {
                     showModal('Ocurrió un error al guardar la requisición.');
                 }
-                
-                loadingOverlay.classList.add('hidden');
             });
 
             pdfButton.addEventListener('click', () => {
@@ -1029,11 +998,61 @@ downloadExcelBtn.addEventListener('click', async () => {
                     pdfObjectUrl = null;
                 }
             });
+
+            downloadExcelBtn.addEventListener('click', async () => {
+                if (!userId) {
+                    showModal('Debes iniciar sesión primero.');
+                    return;
+                }
+                loadingOverlay.classList.remove('hidden');
+                try {
+                    const requisitionsCol = getCollectionRef('requisitions');
+                    const querySnapshot = await getDocs(requisitionsCol);
+
+                    if (querySnapshot.empty) {
+                        loadingOverlay.classList.add('hidden');
+                        showModal('No hay datos para exportar.');
+                        return;
+                    }
+
+                    const requisitions = [];
+                    querySnapshot.forEach(doc => {
+                        requisitions.push(doc.data());
+                    });
+
+                    const worksheet = XLSX.utils.json_to_sheet(requisitions);
+                    const workbook = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(workbook, worksheet, "Requisiciones");
+
+                    XLSX.writeFile(workbook, "requisiciones.xlsx");
+                } catch (error) {
+                    console.error(error);
+                    showModal('Error al descargar la base de datos.');
+                }
+                loadingOverlay.classList.add('hidden');
+            });
+
+            backToMenuBtn.addEventListener('click', () => {
+                clearForm();
+                showScreen('main-menu-screen');
+            });
+
+            downloadSavedPdfBtn.addEventListener('click', () => {
+                postSaveModal.classList.add('hidden');
+                generatePDF(true);
+                clearForm();
+                showScreen('main-menu-screen');
+            });
+
+            exitToMenuBtn.addEventListener('click', () => {
+                postSaveModal.classList.add('hidden');
+                clearForm();
+                showScreen('main-menu-screen');
+            });
         }
         
         async function initFirebase() {
             try {
-                // Se agrega un chequeo para la configuración
                 if (!firebaseConfig.projectId || firebaseConfig.projectId === 'YOUR_PROJECT_ID') {
                     console.warn("Configuración de Firebase no válida. Usando datos de ejemplo.");
                     projects = ['Proyecto Demo'];
@@ -1054,19 +1073,19 @@ downloadExcelBtn.addEventListener('click', async () => {
                 } else {
                     await signInAnonymously(auth);
                 }
-                onAuthStateChanged(auth, (user) => {
+                onAuthStateChanged(auth, async (user) => {
                     if (user) {
                         userId = user.uid;
-                        loadInitialData();
-                    } else {
-                        console.log("No hay usuario autenticado.");
+                        await loadInitialData();
+                        showScreen('main-menu-screen');
                     }
                 });
-            } catch (error) {
-                console.error("Error al inicializar Firebase:", error);
+            } catch (err) {
+                console.error("Error al inicializar Firebase:", err);
+                showModal("Error de conexión con la base de datos. Intenta más tarde.");
             }
         }
-        
+
         document.addEventListener('DOMContentLoaded', initApp);
     </script>
 </body>
