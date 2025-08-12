@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+
 <html lang="es">
 <head>
     <meta charset="UTF-8">
@@ -328,8 +328,17 @@
     <script type="module">
         const { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, getFirestore, doc, getDoc, setDoc, collection, getDocs, runTransaction, query } = window.firebase;
         
+        // CORRECCIÓN: Se agrega una configuración de Firebase predeterminada
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : `{
+            "apiKey": "AIzaSyAuUHRYU3C1Y7ZJsGqmhA3qsE1j4h24Z8k",
+            "authDomain": "reqs-84a99.firebaseapp.com",
+            "projectId": "reqs-84a99",
+            "storageBucket": "reqs-84a99.firebasestorage.app",
+            "messagingSenderId": "216174393165",
+            "appId": "1:216174393165:web:eba078bbd4fec7a8942904"
+        }`);
+
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
         let app, auth, db, userId;
@@ -351,7 +360,7 @@
         const searchRequisitionToggleBtn = document.getElementById('search-requisition-toggle-btn');
         const searchFormContainer = document.getElementById('search-form-container');
         const searchProjectSelect = document.getElementById('search-project-select');
-        const searchCorrelativeInput = document.getElementById('search-correlative-input');
+        const searchCorrelativoInput = document.getElementById('search-correlative-input');
         const searchBtn = document.getElementById('search-btn');
 
         const tableBody = document.getElementById('requisition-table-body');
@@ -764,7 +773,7 @@
             }
 
             if (download) {
-                doc.save(`Requisicion-${correlative}.pdf`);
+                doc.save(`Requisicion-${correlativo}.pdf`);
             } else {
                 const pdfBlob = doc.output('blob');
                 if (pdfObjectUrl) {
@@ -792,15 +801,15 @@
             
             searchBtn.addEventListener('click', async () => {
                 const project = searchProjectSelect.value;
-                const correlative = searchCorrelativeInput.value;
+                const correlativo = searchCorrelativeInput.value;
                 
-                if (!project || !correlative) {
+                if (!project || !correlativo) {
                     showModal('Por favor, selecciona un proyecto e ingresa un correlativo.');
                     return;
                 }
                 
                 loadingOverlay.classList.remove('hidden');
-                const requisition = await getRequisition(project, correlative);
+                const requisition = await getRequisition(project, correlativo);
                 loadingOverlay.classList.add('hidden');
                 
                 if (requisition) {
@@ -892,7 +901,7 @@
             });
 
             projectSelect.addEventListener('change', updateProjectCorrelative);
-            searchProjectSelect.addEventListener('change', () => searchCorrelativeInput.value = '');
+            searchProjectSelect.addEventListener('change', () => searchCorrelativoInput.value = '');
 
             saveButton.addEventListener('click', async () => {
                 const selectedProject = projectSelect.value;
@@ -971,6 +980,19 @@
         
         async function initFirebase() {
             try {
+                // Se agrega un chequeo para la configuración
+                if (!firebaseConfig.projectId || firebaseConfig.projectId === 'YOUR_PROJECT_ID') {
+                    console.warn("Configuración de Firebase no válida. Usando datos de ejemplo.");
+                    projects = ['Proyecto Demo'];
+                    providers = [{ name: 'Proveedor Ejemplo', type: 'Materiales Varios' }];
+                    renderProjects();
+                    renderProviders();
+                    renderProviderTypes();
+                    generateTableRows();
+                    showScreen('main-menu-screen');
+                    return;
+                }
+
                 app = initializeApp(firebaseConfig);
                 auth = getAuth(app);
                 db = getFirestore(app);
@@ -996,3 +1018,5 @@
     </script>
 </body>
 </html>
+
+
